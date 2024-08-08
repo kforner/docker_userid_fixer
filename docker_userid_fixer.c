@@ -1,28 +1,35 @@
+/*
+Copyright Karl Forner - karl.forner@gmail.com
+docker_userid_fixer.c: utility meant to be used as a docker ENTRYPOINT that switches
+to a predefined user using if applicable the user ids set by the `--user` argument of the 
+`docker run` command.
+
+cf https://github.com/kforner/docker_userid_fixer
+
+*/
+
 // for asprintf
 #define _GNU_SOURCE 
-// for get*uid
-#include <sys/types.h>
+#include <stdio.h>
 
-// for err, warn
+// for get*uid, getpwnam
+#include <sys/types.h>
+#include <pwd.h>
+
+// for err, warnx
 #include <err.h>
 #include <errno.h>
 #include <grp.h>
-#include <pwd.h>
 
-#include <stdio.h>
+// for system, free, getenv
 #include <stdlib.h>
+// for strlen
 #include <string.h>
+// for getuid, setreuid
 #include <unistd.h>
 
 
-// return -1 if not integer
-long string_to_integer(char* s) {
-  char* end = NULL;
-  long res = strtol(s, &end, 10);
-  if (*end != '\0') return -1;
-  return res;
-}
-
+// fetches user information (from /etc/passwd) given a user name
 struct passwd * fetch_user_info_by_name(char* user_name) {
   struct passwd *pw = getpwnam(user_name);
   if (pw == NULL)
@@ -30,7 +37,7 @@ struct passwd * fetch_user_info_by_name(char* user_name) {
   return pw;
 }
 
-
+// modify the user ID of a user (using the usermod command)
 void modify_user_id(char* username, uid_t new_uid) {
   char* cmd = NULL;
   int nb = asprintf(&cmd, "usermod -u %i -o %s", new_uid, username);
@@ -42,32 +49,8 @@ void modify_user_id(char* username, uid_t new_uid) {
   free(cmd);
 }
 
-// void create_user(char* username, uid_t uid) {
-//   char* cmd = NULL;
-//   int nb = asprintf(&cmd, "useradd -u %i -o %s", uid, username);
-//   if (nb < 0) err(1, "asprintf failed");
-
-//   int code = system(cmd);
-//   if (code != 0) err(code, "cmd '%s' failed with code %i", cmd, code);
-
-//   free(cmd);
-// }
-
-// void delete_user(char* username) {
-//   char* cmd = NULL;
-//   int nb = asprintf(&cmd, "deluser %s", username);
-//   if (nb < 0) err(1, "asprintf failed");
-
-//   int code = system(cmd);
-//   if (code != 0) err(code, "cmd '%s' failed with code %i", cmd, code);
-
-//   free(cmd);
-// }
-
-
 int main(int argc, char *argv[])
 {
-  // char* argv0 = argv[0];
 	if (argc < 3) {
     warnx("usage: username cmd ...");
     return 1;
@@ -117,17 +100,6 @@ int main(int argc, char *argv[])
     modify_user_id(user, uid);
     if (DEBUG)
       warnx("modified user %s id from %i to %i", user, tuid, uid);
-
-
-    // target_user_info->pw_uid = uid;
-    // target_user_info->pw_gid = gid;
-
-    // FILE* fd = fopen("/etc/passwd", "a");
-    // int code = putpwent(target_user_info, fd);
-    // if (code != 0) err(code, "putpwent failed");
-    // fclose(fd);
-
-    // setenv("HOME", target_user_info != NULL ? target_user_info->pw_dir : "/", 1);
   }
 
 
