@@ -34,7 +34,7 @@ make id/custom
 uid=2222(user1) gid=3333 groups=3333
 ```
 
-Now **user1** has our custom IDs. You may set other IDs by overridding the Makefile UID and GID variables:
+Now **user1** has our custom IDs. You may set other IDs by overriding the Makefile UID and GID variables:
 ```
 %make id/custom  UID=1111 GID=staff
 uid=1111(user1) gid=50(staff) groups=50(staff)
@@ -77,6 +77,4 @@ alias l='ls -CF'
 alias la='ls -A'
 alias ll='ls -alF'
 ```
-
-
 
