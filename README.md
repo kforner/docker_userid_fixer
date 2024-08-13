@@ -12,6 +12,15 @@ and generate an executable in the same folder:
   - it needs permission to write into the user folder
   - after the execution, if the user IDs do not match, the (host) user can not use or delete the generated file.
 
+This software has been heavily influenced by https://github.com/ncopa/su-exec and https://github.com/tianon/gosu
+
+The advantages are:
+
+- the tiny size (~ 17K) (like `su-exec`)
+- the direct integration with the `--user` docker run option, which makes **docker userid fixer** a kind of a natural extension.
+- the fact that the entrypoint is not directly run as root by docker, but by the setuid root, and quickly switches
+  to the initial docker run user id
+- relying on the `--user` docker run option also avoid having to parse the user specification. Instead we benefit from the docker run implementation 
 
 ## setup
 
