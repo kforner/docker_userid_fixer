@@ -16,6 +16,9 @@ cf https://github.com/kforner/docker_userid_fixer
 #include <sys/types.h>
 #include <pwd.h>
 
+// for getgrgid
+#include <grp.h>
+
 // for err, warnx
 #include <err.h>
 #include <errno.h>
@@ -36,22 +39,58 @@ void usage() {
 // fetches user information (from /etc/passwd) given a user name
 struct passwd * fetch_user_info_by_name(char* user_name) {
   struct passwd *pw = getpwnam(user_name);
+  // N.B: pw must NOT be freed()
   if (pw == NULL)
-    err(1, "getpwnam(%s)", user_name);
+    errx(1, "Error, could not get user information: getpwnam(%s)", user_name);
   return pw;
+}
+
+// fetches group information (from /etc/group) given a group name
+struct group* fetch_group_info_by_id(gid_t group_id) {
+  struct group *grp = getgrgid(group_id);
+    // N.B: grp must NOT be freed()
+  // if (grp == NULL)
+  //   errx(1, "Error, could not get group information: getgrgid(%i)", group_id);
+  return grp;
 }
 
 // modify the user ID of a user (using the usermod command)
 void modify_user_id(char* username, uid_t new_uid) {
   char* cmd = NULL;
-  int nb = asprintf(&cmd, "usermod -u %i -o %s", new_uid, username);
+  int nb = asprintf(&cmd, "usermod -u %i %s", new_uid, username);
   if (nb < 0) err(1, "asprintf failed");
 
   int code = system(cmd);
-  if (code != 0) err(code, "cmd '%s' failed with code %i", cmd, code);
+  if (code != 0) errx(code, "cmd '%s' failed with code %i", cmd, code);
 
   free(cmd);
 }
+
+// modify the user ID of a user (using the groupmod command)
+void modify_group_id(char* group_name, uid_t new_gid) {
+  char* cmd = NULL;
+  int nb = asprintf(&cmd, "groupmod -o -g %i %s", new_gid, group_name);
+  if (nb < 0) err(1, "asprintf failed");
+
+  int code = system(cmd);
+  if (code != 0) errx(code, "cmd '%s' failed with code %i", cmd, code);
+
+  free(cmd);
+}
+
+// // create a group in /etc/group for a given group id
+// void create_group_for_id(char* group_name, gid_t group_id) {
+//   char* cmd = NULL;
+//   int nb = asprintf(&cmd, "groupadd -g %i %s", group_id, group_name);
+//   if (nb < 0) err(1, "asprintf failed");
+
+//   int code = system(cmd);
+//   if (code != 0) {
+//     errx(code, "cmd '%s' failed with code %i", cmd, code);
+//   }
+
+//   free(cmd);
+// }
 
 int main(int argc, char *argv[])
 {
@@ -72,12 +111,14 @@ int main(int argc, char *argv[])
   // N.B: uid is the real user ID, i.e the user ID with which we should run the processes
   // in the docker container
 	uid_t uid = getuid();
+  gid_t gid = getgid();
 
   if (DEBUG) {
     // display the effective and real user IDs
     uid_t euid = geteuid();
-    gid_t gid = getgid();
+    gid_t egid = getegid();
     warnx("effective user id=%i", euid);
+    warnx("effective group id=%i", egid);
     warnx("real user id=%i", uid);
     warnx("real group id=%i", gid);
   }
@@ -101,7 +142,7 @@ int main(int argc, char *argv[])
   // fetches user information for the target user 
   struct passwd* target_user_info = fetch_user_info_by_name(user);
   // this should not happen since the target user must exist
-  if (target_user_info == NULL) err(1, "can not fetch info for user %s", user);
+  if (target_user_info == NULL) errx(1, "can not fetch info for user %s", user);
 
   uid_t tuid = target_user_info->pw_uid;
 
@@ -123,6 +164,24 @@ int main(int argc, char *argv[])
     modify_user_id(user, uid);
     if (DEBUG)
       warnx("modified user %s id from %i to %i", user, tuid, uid);
+
+    // groups: if the real group id != target user default group id --> change it
+    if (gid != target_user_info->pw_gid) {
+      // we need the name if of the target user default group
+      struct group *grp = fetch_group_info_by_id(target_user_info->pw_gid);
+      if (grp == NULL) {
+        warnx("Warning: the target user default group %i does not exist in /etc/group", target_user_info->pw_gid);
+        // the target user default group does not exist in /etc/group
+        // this should not happen --> do nothing for now
+      } else {
+        // change the ID of target user default group 
+        if (DEBUG) warnx("modifying group %s with gid %i", grp->gr_name, gid);
+        modify_group_id(grp->gr_name, gid);
+        // N.B: if the group ID already exists in the docker !!!?!??
+        // --> because we use "usermod -o" we end with duplicated group ids in /etc/group. For now not a big deal
+      }
+
+    }
   }
 
   if (DEBUG)
