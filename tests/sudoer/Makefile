@@ -30,4 +30,4 @@ bash/default:
 	@$(DOCKER_RUN) $(IMAGE) bash
 
 bash/custom:
-	@$(DOCKER_RUN_CUSTOM) $(IMAGE) bash
+	$(DOCKER_RUN_CUSTOM) $(IMAGE) bash
